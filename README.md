@@ -4,7 +4,7 @@
 
 # libllm
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: Apache2.0](https://img.shields.io/badge/License-Apache2.0-yellow.svg)](LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/your-repo/libllm)
 [![C Standard](https://img.shields.io/badge/C-11-blue)](CMakeLists.txt)
 
