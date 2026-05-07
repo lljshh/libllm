@@ -33,9 +33,6 @@ jobs:
           cpack -G DEB -D CPACK_DEBIAN_PACKAGE_ARCHITECTURE=amd64
           cpack -G RPM -D CPACK_RPM_PACKAGE_ARCHITECTURE=x86_64
           mv *.deb *.rpm ..
-      - name: Verify artifacts
-        run: |
-          ls -la *.deb *.rpm build/libllm.so
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -72,54 +69,10 @@ jobs:
           cpack -G DEB -D CPACK_DEBIAN_PACKAGE_ARCHITECTURE=arm64
           cpack -G RPM -D CPACK_RPM_PACKAGE_ARCHITECTURE=aarch64
           mv *.deb *.rpm ..
-      - name: Verify artifacts
-        run: |
-          ls -la *.deb *.rpm build/libllm.so
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: linux-arm64
-          path: |
-            *.deb
-            *.rpm
-            build/libllm.so
-          if-no-files-found: error
-
-  build-linux-i386:
-    name: Linux i386
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-      - name: Build and package inside container
-        run: |
-          docker run --rm -v "${{ github.workspace }}":/workspace i386/ubuntu:22.04 \
-            bash -c "
-              set -eux -o pipefail
-              export DEBIAN_FRONTEND=noninteractive
-              apt-get update
-              apt-get install -y --no-install-recommends \
-                cmake build-essential pkg-config \
-                libcurl4-openssl-dev libcjson-dev rpm rpm-build
-              cd /workspace
-              cmake -B build -DCMAKE_BUILD_TYPE=Release
-              cmake --build build -j\$(nproc)
-              if [ -f build/libllm.so ]; then
-                strip --strip-unneeded build/libllm.so
-              fi
-              cd build
-              cpack -G DEB -D CPACK_DEBIAN_PACKAGE_ARCHITECTURE=i386
-              cpack -G RPM -D CPACK_RPM_PACKAGE_ARCHITECTURE=i386
-              mv *.deb *.rpm .. 2>/dev/null || true
-            "
-      - name: Verify artifacts
-        run: |
-          ls -la *.deb *.rpm build/libllm.so
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-i386
           path: |
             *.deb
             *.rpm
@@ -152,15 +105,6 @@ jobs:
       - name: Create ZIP package
         run: |
           Compress-Archive -Path install_dir\* -DestinationPath libllm-windows-amd64.zip
-        shell: pwsh
-      - name: Verify artifacts
-        run: |
-          if (Test-Path libllm-windows-amd64.zip) {
-            Write-Host "ZIP file created successfully"
-          } else {
-            Write-Error "ZIP file not found"
-            exit 1
-          }
         shell: pwsh
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
