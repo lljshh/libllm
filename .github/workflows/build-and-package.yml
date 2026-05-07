@@ -33,14 +33,25 @@ jobs:
           cpack -G DEB -D CPACK_DEBIAN_PACKAGE_ARCHITECTURE=amd64
           cpack -G RPM -D CPACK_RPM_PACKAGE_ARCHITECTURE=x86_64
           mv *.deb *.rpm ..
+      - name: Rename packages with architecture
+        run: |
+          VERSION=${{ github.ref_name }}
+          VERSION=${VERSION#v}
+          # 重命名 .deb
+          for f in *.deb; do
+            mv "$f" "libllm-${VERSION}-amd64.deb"
+          done
+          # 重命名 .rpm
+          for f in *.rpm; do
+            mv "$f" "libllm-${VERSION}-x86_64.rpm"
+          done
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: linux-amd64
           path: |
-            *.deb
-            *.rpm
-            build/libllm.so
+            libllm-*.deb
+            libllm-*.rpm
           if-no-files-found: error
 
   build-linux-arm64:
@@ -69,14 +80,23 @@ jobs:
           cpack -G DEB -D CPACK_DEBIAN_PACKAGE_ARCHITECTURE=arm64
           cpack -G RPM -D CPACK_RPM_PACKAGE_ARCHITECTURE=aarch64
           mv *.deb *.rpm ..
+      - name: Rename packages with architecture
+        run: |
+          VERSION=${{ github.ref_name }}
+          VERSION=${VERSION#v}
+          for f in *.deb; do
+            mv "$f" "libllm-${VERSION}-arm64.deb"
+          done
+          for f in *.rpm; do
+            mv "$f" "libllm-${VERSION}-aarch64.rpm"
+          done
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: linux-arm64
           path: |
-            *.deb
-            *.rpm
-            build/libllm.so
+            libllm-*.deb
+            libllm-*.rpm
           if-no-files-found: error
 
   build-windows-mingw:
@@ -123,13 +143,16 @@ jobs:
         run: cmake --install build --prefix install_dir
       - name: Create ZIP package
         shell: pwsh
-        run: Compress-Archive -Path install_dir\* -DestinationPath libllm-windows-mingw-amd64.zip
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          Compress-Archive -Path install_dir\* -DestinationPath "libllm-${version}-windows-mingw-amd64.zip"
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: windows-mingw-amd64
-          path: libllm-windows-mingw-amd64.zip
+          path: libllm-*.zip
           if-no-files-found: error
+
   release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
@@ -154,10 +177,8 @@ jobs:
           files: |
             artifacts/linux-amd64/*.deb
             artifacts/linux-amd64/*.rpm
-            artifacts/linux-amd64/*.so
             artifacts/linux-arm64/*.deb
             artifacts/linux-arm64/*.rpm
-            artifacts/linux-arm64/*.so
             artifacts/windows-mingw-amd64/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
