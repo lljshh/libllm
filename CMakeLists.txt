@@ -21,20 +21,10 @@ set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 
 # 查找依赖
 find_package(CURL REQUIRED)
-if(WIN32)
-    # Windows + vcpkg 模式
-    find_package(cjson CONFIG REQUIRED)
-    if(TARGET cjson)
-        add_library(PkgConfig::CJSON ALIAS cjson)
-    else()
-        message(FATAL_ERROR "cjson target not found")
-    endif()
-else()
-    # Linux / macOS 使用 pkg-config
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(CJSON REQUIRED libcjson IMPORTED_TARGET)
-    # pkg_check_modules 会自动创建 PkgConfig::CJSON
-endif()
+
+# 统一使用 pkg-config（Linux、MinGW 都支持）
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(CJSON REQUIRED libcjson IMPORTED_TARGET)
 
 
 # 设置版本号和 soversion
