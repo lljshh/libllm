@@ -1,3 +1,7 @@
+<p align="right">
+  <a href="README_EN.md">English</a>
+</p>
+
 # libllm
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)

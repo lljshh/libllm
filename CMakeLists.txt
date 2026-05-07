@@ -92,3 +92,21 @@ if(BUILD_EXAMPLES)
     target_link_libraries(libllm_example PRIVATE ${PROJECT_NAME})
     target_include_directories(libllm_example PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 endif()
+
+set(CPACK_PACKAGE_NAME "libllm")
+set(CPACK_PACKAGE_VERSION "1.0.0")
+set(CPACK_PACKAGE_VENDOR "Kamov")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "A C library for LLM API communication")
+set(CPACK_PACKAGE_CONTACT "your-email@example.com")
+
+# 对于包含多个架构二进制文件的包，DEB 架构可以设为 'all'
+set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "all")
+set(CPACK_RPM_PACKAGE_ARCHITECTURE "noarch")
+
+# 告诉 CPack 安装文件时复制整个目录结构
+install(DIRECTORY "package_root/"
+        DESTINATION "/"
+        USE_SOURCE_PERMISSIONS)
+
+# 最后，启用 CPack
+include(CPack)
