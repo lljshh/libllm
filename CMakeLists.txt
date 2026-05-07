@@ -25,7 +25,6 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(CJSON REQUIRED libcjson IMPORTED_TARGET)
 
 
-
 # 设置版本号和 soversion
 set(LIBLLM_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
 set(LIBLLM_VERSION_MINOR ${PROJECT_VERSION_MINOR})
@@ -54,26 +53,20 @@ target_link_libraries(${PROJECT_NAME}
         PkgConfig::CJSON
 )
 
-
-
 set_target_properties(${PROJECT_NAME} PROPERTIES
     VERSION ${PROJECT_VERSION}
     SOVERSION ${LIBLLM_VERSION_MAJOR}
 )
 
-# 安装
+# 安装规则（只保留一份，避免重复）
 include(GNUInstallDirs)
 install(TARGETS ${PROJECT_NAME}
     EXPORT ${PROJECT_NAME}Targets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
-install(FILES
-    include/libllm.h
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-)
+install(FILES include/libllm.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(EXPORT ${PROJECT_NAME}Targets
     NAMESPACE ${PROJECT_NAME}::
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
@@ -93,20 +86,12 @@ if(BUILD_EXAMPLES)
     target_include_directories(libllm_example PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 endif()
 
+# ===== CPack 配置 =====
 set(CPACK_PACKAGE_NAME "libllm")
-set(CPACK_PACKAGE_VERSION "1.0.0")
+set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
 set(CPACK_PACKAGE_VENDOR "Kamov")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "A C library for LLM API communication")
 set(CPACK_PACKAGE_CONTACT "your-email@example.com")
 
-# 对于包含多个架构二进制文件的包，DEB 架构可以设为 'all'
-set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "all")
-set(CPACK_RPM_PACKAGE_ARCHITECTURE "noarch")
-
-# 告诉 CPack 安装文件时复制整个目录结构
-install(DIRECTORY "package_root/"
-        DESTINATION "/"
-        USE_SOURCE_PERMISSIONS)
-
-# 最后，启用 CPack
+# 架构由 CPack 自动检测，不写死
 include(CPack)

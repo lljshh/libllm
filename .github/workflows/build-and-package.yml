@@ -3,116 +3,94 @@ name: Build and Package libllm
 on:
   push:
     tags:
-      - "v[0-9]+.[0-9]+.[0-9]+" # 当推送版本标签（如 v1.0.0）时触发
+      - "v*" # 推送 v1.0.0 之类的标签时触发
   workflow_dispatch:
-    # 允许你从 GitHub 网页端手动触发
+    # 允许手动触发
 
 jobs:
-  # Job: 为所有平台和架构编译二进制文件
-  build-binaries:
-    name: Build ${{ matrix.config.name }}
-    runs-on: ${{ matrix.config.os }}
+  # ================================
+  #  Linux 多架构构建 (amd64, i386, arm64)
+  # ================================
+  build-linux:
+    name: Linux ${{ matrix.arch }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        config:
-          # Linux x86_64
-          - name: Linux x86_64
-            os: ubuntu-latest
-            arch: amd64
-            cmake_extra_args: ""
-            artifact_name: libllm-linux-amd64.so
-            # 没有特殊命令，使用默认gcc
-            # Linux ARM64 (使用QEMU模拟)
-          - name: Linux ARM64
-            os: ubuntu-latest
-            arch: arm64
-            cmake_extra_args: "-DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc
-              -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++"
-            artifact_name: libllm-linux-arm64.so
-            setup: |
-              sudo apt-get update
-              sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-          # Linux i386 (32位)
-          - name: Linux i386
-            os: ubuntu-latest
-            arch: i386
-            cmake_extra_args: "-DCMAKE_C_FLAGS=-m32 -DCMAKE_CXX_FLAGS=-m32"
-            artifact_name: libllm-linux-i386.so
-            setup: |
-              sudo dpkg --add-architecture i386
-              sudo apt-get update
-              sudo apt-get install -y gcc-multilib g++-multilib libc6:i386 libgcc-s1:i386
-          # Windows x86_64
-          - name: Windows x86_64
-            os: windows-latest
-            arch: amd64
-            cmake_extra_args: "-A x64"
-            artifact_name: libllm-windows-amd64.dll
-            setup: ""
+        arch: [ amd64, i386, arm64 ]
+        include:
+          - arch: amd64
+            container: ubuntu:22.04
+            cmake_extra: ""
+          - arch: i386
+            container: i386/ubuntu:22.04
+            cmake_extra: ""
+          - arch: arm64
+            container: arm64v8/ubuntu:22.04
+            cmake_extra: ""
+    container:
+      image: ${{ matrix.container }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 为特定架构安装依赖（Linux环境）
-      - name: Install dependencies (${{ matrix.config.name }})
-        if: runner.os == 'Linux'
-        run: ${{ matrix.config.setup }}
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            cmake build-essential \
+            libcurl4-openssl-dev \
+            libcjson-dev
 
-      # 为Windows设置MSVC开发环境
-      - name: Setup MSVC (Windows)
-        if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
-
-      # 配置CMake项目
       - name: Configure CMake
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release ${{
-          matrix.config.cmake_extra_args }}
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmake_extra }}
 
-      # 编译项目
       - name: Build
         run: cmake --build build --config Release
 
-      # 上传编译好的二进制文件作为后续步骤的输入
-      - name: Upload binary
+      - name: Prepare package directory
+        run: |
+          mkdir -p package/usr/local/lib
+          cp build/libllm.so package/usr/local/lib/
+
+      - name: Build .deb and .rpm with CPack
+        run: |
+          cd build
+          cpack -G DEB -D CPACK_DEBIAN_PACKAGE_ARCHITECTURE=${{ matrix.arch }}
+          cpack -G RPM -D CPACK_RPM_PACKAGE_ARCHITECTURE=${{ matrix.arch }}
+          cd ..
+          mv build/*.deb build/*.rpm ./
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.config.artifact_name }}
-          path: build/Release/libllm.so || build/Release/libllm.dll
+          name: linux-${{ matrix.arch }}
+          path: |
+            *.deb
+            *.rpm
+            build/libllm.so
 
-  # Job: 创建最终的DEB/RPM包
-  create-packages:
-    name: Create Linux Packages
-    runs-on: ubuntu-latest
-    needs: build-binaries # 确保在二进制编译完成后运行
+  # ================================
+  #  Windows 构建 (x64 DLL)
+  # ================================
+  build-windows:
+    name: Windows amd64
+    runs-on: windows-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download all binaries
-        uses: actions/download-artifact@v4
-        with:
-          path: downloaded-artifacts
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Organize files for packaging
-        run: |
-          mkdir -p package_root/usr/local/lib
-          # 将各个架构的动态库文件移动到正确的位置
-          cp downloaded-artifacts/libllm-linux-amd64.so package_root/usr/local/lib/libllm.so
-          cp downloaded-artifacts/libllm-linux-arm64.so package_root/usr/local/lib/libllm.so
-          cp downloaded-artifacts/libllm-linux-i386.so package_root/usr/local/lib/libllm.so
-          # 使用 find 命令验证文件是否都已就位
-          find package_root
+      - name: Configure CMake
+        run: cmake -B build -A x64
 
-      - name: Create .deb and .rpm packages with CPack
-        run: |
-          cmake -B build \
-            -DCPACK_GENERATOR="DEB;RPM" \
-            -DCPACK_DEBIAN_PACKAGE_ARCHITECTURE=all
-          cmake --build build --target package
+      - name: Build
+        run: cmake --build build --config Release
 
-      - name: Upload DEB and RPM packages as artifacts
+      - name: Upload DLL
         uses: actions/upload-artifact@v4
         with:
-          name: linux-packages
-          path: build/*.deb build/*.rpm
+          name: windows-amd64
+          path: build/Release/libllm.dll
