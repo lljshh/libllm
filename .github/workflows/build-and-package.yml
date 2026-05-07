@@ -38,9 +38,10 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            cmake build-essential \
-            libcurl4-openssl-dev \
-            libcjson-dev
+          cmake build-essential \
+          pkg-config \
+          libcurl4-openssl-dev \
+          libcjson-dev
 
       - name: Configure CMake
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmake_extra }}
@@ -77,14 +78,20 @@ jobs:
     name: Windows amd64
     runs-on: windows-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      # 启用 vcpkg 并安装 curl 和 cjson
+      - name: Install vcpkg dependencies
+        run: |
+          vcpkg install curl:x64-windows cjson:x64-windows
 
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: Configure CMake
-        run: cmake -B build -A x64
+        run: |
+          cmake -B build -A x64 `
+            -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
 
       - name: Build
         run: cmake --build build --config Release

@@ -21,8 +21,15 @@ set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 
 # 查找依赖
 find_package(CURL REQUIRED)
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(CJSON REQUIRED libcjson IMPORTED_TARGET)
+find_package(cjson CONFIG QUIET)
+if(cjson_FOUND)
+    # 创建一个别名，使后面可以继续用 PkgConfig::CJSON 链接
+    add_library(PkgConfig::CJSON ALIAS cjson::cjson)
+else()
+    # 回退到 pkg-config（Linux / macOS）
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(CJSON REQUIRED libcjson IMPORTED_TARGET)
+endif()
 
 
 # 设置版本号和 soversion
