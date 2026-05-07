@@ -130,3 +130,34 @@ jobs:
           name: windows-mingw-amd64
           path: libllm-windows-mingw-amd64.zip
           if-no-files-found: error
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build-linux-amd64, build-linux-arm64, build-windows-mingw]
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Display structure of downloaded files
+        run: ls -R artifacts
+      - name: Create Release and upload artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/linux-amd64/*.deb
+            artifacts/linux-amd64/*.rpm
+            artifacts/linux-amd64/*.so
+            artifacts/linux-arm64/*.deb
+            artifacts/linux-arm64/*.rpm
+            artifacts/linux-arm64/*.so
+            artifacts/windows-mingw-amd64/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
