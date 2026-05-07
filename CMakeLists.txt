@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(libllm VERSION 0.1.0 LANGUAGES C)
+project(libllm VERSION 0.0.2 LANGUAGES C)
 
 # 选项
 option(BUILD_SHARED_LIBS "Build shared library" ON)
@@ -16,6 +16,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # 符号可见性 — 默认隐藏，仅导出带 __attribute__((visibility("default"))) 的符号
 set(CMAKE_C_VISIBILITY_PRESET hidden)
+set(CMAKE_INSTALL_PREFIX /usr)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 
 
@@ -73,7 +74,17 @@ install(EXPORT ${PROJECT_NAME}Targets
     NAMESPACE ${PROJECT_NAME}::
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
 )
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/libllm.pc.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/libllm.pc"
+    @ONLY
+)
 
+# 安装 pkg-config 文件
+install(
+    FILES "${CMAKE_CURRENT_BINARY_DIR}/libllm.pc"
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
+)
 
 # 测试
 if(BUILD_TESTS)
