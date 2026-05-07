@@ -17,7 +17,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             cmake build-essential pkg-config \
-            libcurl4-openssl-dev libcjson-dev rpm rpm-build
+            libcurl4-openssl-dev libcjson-dev rpm
       - name: Configure CMake
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build
@@ -53,7 +53,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             cmake build-essential pkg-config \
-            libcurl4-openssl-dev libcjson-dev rpm rpm-build
+            libcurl4-openssl-dev libcjson-dev rpm
       - name: Configure CMake
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build
@@ -94,7 +94,10 @@ jobs:
           cmake -B build -A x64 `
             -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT\scripts\buildsystems\vcpkg.cmake" `
             -DCMAKE_BUILD_TYPE=Release `
-            -DVCPKG_TARGET_TRIPLET=x64-windows
+            -DVCPKG_TARGET_TRIPLET=x64-windows `
+            -DCMAKE_C_STANDARD=11 `
+            -DCMAKE_C_STANDARD_REQUIRED=ON
+            -DCMAKE_C_FLAGS="/std:c11"
         shell: pwsh
       - name: Build
         run: cmake --build build --config Release --parallel
