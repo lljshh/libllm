@@ -3,101 +3,168 @@ name: Build and Package libllm
 on:
   push:
     tags:
-      - "v*" # 推送 v1.0.0 之类的标签时触发
+      - "v*"
   workflow_dispatch:
-    # 允许手动触发
 
 jobs:
-  # ================================
-  #  Linux 多架构构建 (amd64, i386, arm64)
-  # ================================
-  build-linux:
-    name: Linux ${{ matrix.arch }}
+  build-linux-amd64:
+    name: Linux amd64
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: [ amd64, i386, arm64 ]
-        include:
-          - arch: amd64
-            container: ubuntu:22.04
-            cmake_extra: ""
-          - arch: i386
-            container: i386/ubuntu:22.04
-            cmake_extra: ""
-          - arch: arm64
-            container: arm64v8/ubuntu:22.04
-            cmake_extra: ""
-    container:
-      image: ${{ matrix.container }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
-          apt-get update
-          apt-get install -y --no-install-recommends \
-          cmake build-essential \
-          pkg-config \
-          libcurl4-openssl-dev \
-          libcjson-dev
-
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake build-essential pkg-config \
+            libcurl4-openssl-dev libcjson-dev rpm rpm-build
       - name: Configure CMake
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmake_extra }}
-
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build
-        run: cmake --build build --config Release
-
-      - name: Prepare package directory
+        run: cmake --build build -j$(nproc)
+      - name: Strip debug symbols
         run: |
-          mkdir -p package/usr/local/lib
-          cp build/libllm.so package/usr/local/lib/
-
-      - name: Build .deb and .rpm with CPack
+          if [ -f build/libllm.so ]; then
+            strip --strip-unneeded build/libllm.so
+          fi
+      - name: Package with CPack
         run: |
           cd build
-          cpack -G DEB -D CPACK_DEBIAN_PACKAGE_ARCHITECTURE=${{ matrix.arch }}
-          cpack -G RPM -D CPACK_RPM_PACKAGE_ARCHITECTURE=${{ matrix.arch }}
-          cd ..
-          mv build/*.deb build/*.rpm ./
-
+          cpack -G DEB -D CPACK_DEBIAN_PACKAGE_ARCHITECTURE=amd64
+          cpack -G RPM -D CPACK_RPM_PACKAGE_ARCHITECTURE=x86_64
+          mv *.deb *.rpm ..
+      - name: Verify artifacts
+        run: |
+          ls -la *.deb *.rpm build/libllm.so
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: linux-${{ matrix.arch }}
+          name: linux-amd64
           path: |
             *.deb
             *.rpm
             build/libllm.so
+          if-no-files-found: error
 
-  # ================================
-  #  Windows 构建 (x64 DLL)
-  # ================================
+  build-linux-arm64:
+    name: Linux arm64
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake build-essential pkg-config \
+            libcurl4-openssl-dev libcjson-dev rpm rpm-build
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build -j$(nproc)
+      - name: Strip debug symbols
+        run: |
+          if [ -f build/libllm.so ]; then
+            strip --strip-unneeded build/libllm.so
+          fi
+      - name: Package with CPack
+        run: |
+          cd build
+          cpack -G DEB -D CPACK_DEBIAN_PACKAGE_ARCHITECTURE=arm64
+          cpack -G RPM -D CPACK_RPM_PACKAGE_ARCHITECTURE=aarch64
+          mv *.deb *.rpm ..
+      - name: Verify artifacts
+        run: |
+          ls -la *.deb *.rpm build/libllm.so
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-arm64
+          path: |
+            *.deb
+            *.rpm
+            build/libllm.so
+          if-no-files-found: error
+
+  build-linux-i386:
+    name: Linux i386
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Build and package inside container
+        run: |
+          docker run --rm -v "${{ github.workspace }}":/workspace i386/ubuntu:22.04 \
+            bash -c "
+              set -eux -o pipefail
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                cmake build-essential pkg-config \
+                libcurl4-openssl-dev libcjson-dev rpm rpm-build
+              cd /workspace
+              cmake -B build -DCMAKE_BUILD_TYPE=Release
+              cmake --build build -j\$(nproc)
+              if [ -f build/libllm.so ]; then
+                strip --strip-unneeded build/libllm.so
+              fi
+              cd build
+              cpack -G DEB -D CPACK_DEBIAN_PACKAGE_ARCHITECTURE=i386
+              cpack -G RPM -D CPACK_RPM_PACKAGE_ARCHITECTURE=i386
+              mv *.deb *.rpm .. 2>/dev/null || true
+            "
+      - name: Verify artifacts
+        run: |
+          ls -la *.deb *.rpm build/libllm.so
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-i386
+          path: |
+            *.deb
+            *.rpm
+            build/libllm.so
+          if-no-files-found: error
+
   build-windows:
     name: Windows amd64
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-
-      # 启用 vcpkg 并安装 curl 和 cjson
       - name: Install vcpkg dependencies
         run: |
           vcpkg install curl:x64-windows cjson:x64-windows
-
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
-
       - name: Configure CMake
         run: |
           cmake -B build -A x64 `
-            -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
-
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT\scripts\buildsystems\vcpkg.cmake" `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DVCPKG_TARGET_TRIPLET=x64-windows
+        shell: pwsh
       - name: Build
-        run: cmake --build build --config Release
-
-      - name: Upload DLL
+        run: cmake --build build --config Release --parallel
+        shell: pwsh
+      - name: Install to temporary directory
+        run: cmake --install build --config Release --prefix install_dir
+        shell: pwsh
+      - name: Create ZIP package
+        run: |
+          Compress-Archive -Path install_dir\* -DestinationPath libllm-windows-amd64.zip
+        shell: pwsh
+      - name: Verify artifacts
+        run: |
+          if (Test-Path libllm-windows-amd64.zip) {
+            Write-Host "ZIP file created successfully"
+          } else {
+            Write-Error "ZIP file not found"
+            exit 1
+          }
+        shell: pwsh
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: windows-amd64
-          path: build/Release/libllm.dll
+          path: libllm-windows-amd64.zip
+          if-no-files-found: error

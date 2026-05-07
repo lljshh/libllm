@@ -21,14 +21,19 @@ set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 
 # 查找依赖
 find_package(CURL REQUIRED)
-find_package(cjson CONFIG QUIET)
-if(cjson_FOUND)
-    # 创建一个别名，使后面可以继续用 PkgConfig::CJSON 链接
-    add_library(PkgConfig::CJSON ALIAS cjson::cjson)
+if(WIN32)
+    # Windows + vcpkg 模式
+    find_package(cjson CONFIG REQUIRED)
+    if(TARGET cjson)
+        add_library(PkgConfig::CJSON ALIAS cjson)
+    else()
+        message(FATAL_ERROR "cjson target not found")
+    endif()
 else()
-    # 回退到 pkg-config（Linux / macOS）
+    # Linux / macOS 使用 pkg-config
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(CJSON REQUIRED libcjson IMPORTED_TARGET)
+    # pkg_check_modules 会自动创建 PkgConfig::CJSON
 endif()
 
 
@@ -44,7 +49,7 @@ list(REMOVE_ITEM LIBLLM_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/test_helpers.c"
 
 # 创建库
 add_library(${PROJECT_NAME} ${LIBLLM_SOURCES})
-
+set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "llm")
 target_include_directories(${PROJECT_NAME}
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
