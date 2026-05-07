@@ -79,34 +79,54 @@ jobs:
             build/libllm.so
           if-no-files-found: error
 
-  build-windows:
-    name: Windows amd64
+  build-windows-mingw:
+    name: Windows amd64 (MinGW)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install vcpkg dependencies
-        run: vcpkg install curl:x64-windows cjson:x64-windows
-      - name: Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1
-      - name: Configure CMake
-        # 使用 cmd 而不是 PowerShell，避免参数解析问题
-        shell: cmd
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-make
+            mingw-w64-x86_64-pkg-config
+            mingw-w64-x86_64-curl
+            mingw-w64-x86_64-cjson
+      - name: Configure CMake (MinGW)
+        shell: msys2 {0}
         run: |
-          cmake -B build -A x64 ^
-            -DCMAKE_TOOLCHAIN_FILE="%VCPKG_INSTALLATION_ROOT%\scripts\buildsystems\vcpkg.cmake" ^
-            -DCMAKE_BUILD_TYPE=Release ^
-            -DVCPKG_TARGET_TRIPLET=x64-windows ^
-            -DCMAKE_C_FLAGS="/std:c11"
+          cmake -B build \
+            -G "MinGW Makefiles" \
+            -DCMAKE_C_COMPILER=gcc \
+            -DCMAKE_CXX_COMPILER=g++ \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_STANDARD=11 \
+            -DCMAKE_C_STANDARD_REQUIRED=ON
       - name: Build
-        run: cmake --build build --config Release --parallel
-      - name: Install to temporary directory
-        run: cmake --install build --config Release --prefix install_dir
+        shell: msys2 {0}
+        run: cmake --build build -j$(nproc)
+      - name: Strip debug symbols
+        shell: msys2 {0}
+        run: |
+          if [ -f build/libllm.dll ]; then
+            strip --strip-unneeded build/libllm.dll
+          fi
+          if [ -f build/libllm.a ]; then
+            strip --strip-unneeded build/libllm.a
+          fi
+      - name: Install to prefix
+        shell: msys2 {0}
+        run: cmake --install build --prefix install_dir
       - name: Create ZIP package
-        # 直接用 PowerShell 命令压缩
-        run: powershell -Command "Compress-Archive -Path install_dir\* -DestinationPath libllm-windows-amd64.zip"
+        shell: pwsh
+        run: Compress-Archive -Path install_dir\* -DestinationPath libllm-windows-mingw-amd64.zip
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: windows-amd64
-          path: libllm-windows-amd64.zip
+          name: windows-mingw-amd64
+          path: libllm-windows-mingw-amd64.zip
           if-no-files-found: error
