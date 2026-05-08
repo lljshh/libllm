@@ -7,5 +7,5 @@ Name: @PROJECT_NAME@
 Description: @CPACK_PACKAGE_DESCRIPTION_SUMMARY@
 Version: @PROJECT_VERSION@
 Requires.private: libcurl
-Libs: -L${libdir} -llm
+Libs: -L${libdir} -lllm
 Cflags: -I${includedir}
